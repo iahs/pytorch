@@ -4,6 +4,7 @@
 
 #include <ATen/core/functional.h>
 #include <torch/csrc/distributed/c10d/reducer.h>
+#include <torch/csrc/jit/python/pybind_utils.h>
 #include <torch/csrc/utils/tensor_flatten.h>
 
 namespace c10d {
@@ -79,4 +80,19 @@ void broadcast_coalesced(
   }
 }
 
+GradBucket::GradBucket(std::vector<at::Tensor>& tensors) : tensors_(tensors){};
+
+PythonCommHook::PythonCommHook(py::object state, py::object hook)
+    : state_(std::move(state)), hook_(std::move(hook)){};
+std::shared_ptr<torch::jit::Future> PythonCommHook::operate(
+    const GradBucket& bucket) {
+  return hook_(state_, bucket.tensors_)
+      .cast<std::shared_ptr<torch::jit::Future>>();
+
+  // Below return doesn't work. need to think about it.
+
+  // c10::intrusive_ptr<c10::ivalue::Future> fut;
+  // return hook_(state_, bucket.tensors_)
+  //             .cast<std::shared_ptr<torch::jit::PythonFutureWrapper>>()->fut;
+};
 } // namespace c10d

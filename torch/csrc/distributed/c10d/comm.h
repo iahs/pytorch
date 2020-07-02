@@ -4,6 +4,7 @@
 
 #include <ATen/ATen.h>
 #include <c10d/ProcessGroup.hpp>
+#include <torch/csrc/utils/pybind.h>
 
 namespace c10d {
 
@@ -13,4 +14,28 @@ void broadcast_coalesced(
     at::TensorList tensors,
     size_t buffer_size);
 
+class GradBucket {
+ public:
+  explicit GradBucket(std::vector<at::Tensor>& tensors);
+  std::vector<at::Tensor> tensors_;
+};
+
+struct CommHookInterface {
+ public:
+  virtual std::shared_ptr<torch::jit::Future> operate(
+      const GradBucket& bucket) = 0;
+};
+
+class __attribute__((visibility("default"))) PythonCommHook
+    : public CommHookInterface {
+ public:
+  PythonCommHook(py::object state, py::object hook);
+
+  std::shared_ptr<torch::jit::Future> operate(
+      const GradBucket& bucket) override;
+
+ private:
+  py::object state_;
+  py::object hook_;
+};
 } // namespace c10d
